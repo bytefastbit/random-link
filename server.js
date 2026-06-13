@@ -1,135 +1,138 @@
 const express = require('express');
-const { Readable } = require('stream'); // Required for modern streaming
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const crypto = require('crypto');
+
 const app = express();
-
-// 1. Tell Express to trust Render's proxy (Fixes the http vs https issue)
-app.set('trust proxy', 1);
-
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
 
-// In-memory database to store our one-time links
+// Store active links in memory. 
+// Note: On free hosts, this resets if the server goes to sleep.
 const activeLinks = new Map();
 
-// YOUR SECRET PASSWORD - Change this before deploying!
-const ADMIN_PASSWORD = "my_super_secret_password_123";
+// YOUR SECRET PASSWORD - Change this!
+const ADMIN_PASSWORD = 'mysecretpassword123';
 
-// 1. ADMIN PAGE: Where you generate the links
+// ---------------------------------------------------------
+// 1. ADMIN PANEL (Only you can access this to generate links)
+// ---------------------------------------------------------
 app.get('/admin', (req, res) => {
     res.send(`
-        <html>
-            <body style="font-family: Arial; padding: 50px;">
-                <h2>Generate Secure Download Link</h2>
-                <form method="POST" action="/admin/generate">
-                    <input type="password" name="password" placeholder="Admin Password" required /><br><br>
-                    <input type="url" name="originUrl" placeholder="Original Download Link" style="width: 400px;" required /><br><br>
-                    <button type="submit">Generate One-Time Link</button>
-                </form>
-            </body>
-        </html>
+        <h2>Create Secure Link</h2>
+        <form method="POST" action="/admin/generate">
+            <input type="password" name="password" placeholder="Admin Password" required><br><br>
+            <input type="url" name="sourceUrl" placeholder="Original Download Link" required size="50"><br><br>
+            <button type="submit">Generate Link</button>
+        </form>
     `);
 });
 
 app.post('/admin/generate', (req, res) => {
-    const { password, originUrl } = req.body;
-
-    if (password !== ADMIN_PASSWORD) {
-        return res.status(403).send("Unauthorized.");
-    }
-
-    const token = crypto.randomUUID(); 
-    activeLinks.set(token, originUrl);
-
-    // This will now correctly generate https:// links
-    const fullUrl = `${req.protocol}://${req.get('host')}/secure/${token}`;
-
-    res.send(`
-        <html>
-            <body style="font-family: Arial; padding: 50px;">
-                <h2>Success!</h2>
-                <p>Share this link. It will work EXACTLY once.</p>
-                <input type="text" value="${fullUrl}" style="width: 500px;" readonly />
-            </body>
-        </html>
-    `);
-});
-
-// 2. THE REDIRECT PAGE: What the user sees
-app.get('/secure/:token', (req, res) => {
-    const token = req.params.token;
-
-    if (!activeLinks.has(token)) {
-        return res.status(404).send("<h1>Link Expired or Invalid</h1><p>This link has already been used or does not exist.</p>");
-    }
-
-    res.send(`
-        <html>
-            <body style="font-family: Arial; padding: 50px; text-align: center;">
-                <h2>Your file is ready.</h2>
-                <p>Clicking the button below will start the download and permanently destroy this link.</p>
-                <form method="POST" action="/download/${token}">
-                    <button type="submit" style="padding: 15px 30px; font-size: 18px; cursor: pointer;">Download File</button>
-                </form>
-            </body>
-        </html>
-    `);
-});
-
-// 3. THE PROXY DOWNLOADER: Hides the origin URL
-app.post('/download/:token', async (req, res) => {
-    const token = req.params.token;
-
-    if (!activeLinks.has(token)) {
-        return res.status(404).send("Link expired.");
-    }
-
-    const targetUrl = activeLinks.get(token);
+    const { password, sourceUrl } = req.body;
     
-    // IMPORTANT: Delete the token immediately so it cannot be reused.
-    activeLinks.delete(token);
+    if (password !== ADMIN_PASSWORD) {
+        return res.status(403).send("Forbidden");
+    }
+
+    // Generate a secure, random ID
+    const randomId = crypto.randomBytes(16).toString('hex');
+    
+    // Store the original URL mapped to the random ID
+    activeLinks.set(randomId, sourceUrl);
+
+    // Give you the link to share
+    const shareableLink = \`\${req.protocol}://\${req.get('host')}/p/\${randomId}\`;
+    res.send(`Success! Share this link: <br><br><b><a href="\${shareableLink}">\${shareableLink}</a></b><br><br><i>This link will self-destruct after one use.</i>`);
+});
+
+// ---------------------------------------------------------
+// 2. THE REDIRECT PAGE
+// ---------------------------------------------------------
+app.get('/p/:id', (req, res) => {
+    const id = req.params.id;
+    
+    // Check if link exists
+    if (!activeLinks.has(id)) {
+        return res.status(404).send("This link does not exist or has already been used.");
+    }
+
+    // Render the page with the download button and the URL-scrambling script
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Secure Download</title>
+            <style>
+                body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; background: #111; color: white; }
+                .btn { padding: 15px 30px; font-size: 20px; background: #28a745; color: white; text-decoration: none; border-radius: 5px; border: none; cursor: pointer;}
+            </style>
+        </head>
+        <body>
+            <form method="POST" action="/download/${id}">
+                <button class="btn" type="submit">Start Secure Download</button>
+            </form>
+
+            <script>
+                // This script rapidly scrambles the URL in the address bar
+                function generateRandomString(length) {
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789~-';
+                    let result = '';
+                    for (let i = 0; i < length; i++) {
+                        result += chars.charAt(Math.floor(Math.random() * chars.length));
+                    }
+                    return result;
+                }
+
+                setInterval(() => {
+                    const fakePath = "/" + generateRandomString(4) + "-" + generateRandomString(6) + "~" + generateRandomString(5);
+                    window.history.replaceState(null, "", fakePath);
+                }, 100); // Changes 10 times a second
+            </script>
+        </body>
+        </html>
+    `);
+});
+
+// ---------------------------------------------------------
+// 3. THE PROXY DOWNLOAD (Hides the source from DevTools)
+// ---------------------------------------------------------
+app.post('/download/:id', async (req, res) => {
+    const id = req.params.id;
+
+    if (!activeLinks.has(id)) {
+        return res.status(404).send("Link expired or invalid.");
+    }
+
+    const sourceUrl = activeLinks.get(id);
+    
+    // SECURITY: Delete the link immediately so it can never be used again
+    activeLinks.delete(id);
 
     try {
-        // Fetch the file while pretending to be a normal Chrome browser
-        const response = await fetch(targetUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
-
-        if (!response.ok) {
-            return res.status(response.status).send(`Target server rejected the request. Status: ${response.status}`);
-        }
-
-        // Forward necessary headers (file size, type, etc.)
-        const contentType = response.headers.get('content-type');
-        const contentLength = response.headers.get('content-length');
-        const contentDisposition = response.headers.get('content-disposition');
-
-        if (contentType) res.setHeader('Content-Type', contentType);
-        if (contentLength) res.setHeader('Content-Length', contentLength);
+        // Fetch the file from the original source as a proxy
+        const response = await fetch(sourceUrl);
         
-        // Force the browser to download the file instead of playing it inside the tab
-        if (contentDisposition) {
-            res.setHeader('Content-Disposition', contentDisposition);
-        } else {
-            res.setHeader('Content-Disposition', 'attachment'); 
+        if (!response.ok) throw new Error(\`Unexpected response \${response.statusText}\`);
+
+        // Forward headers to the client so it triggers a file download
+        res.setHeader('Content-Disposition', 'attachment');
+        if (response.headers.get('content-type')) {
+            res.setHeader('Content-Type', response.headers.get('content-type'));
+        }
+        if (response.headers.get('content-length')) {
+            res.setHeader('Content-Length', response.headers.get('content-length'));
         }
 
-        // Pipe the file data directly to the user
-        if (response.body) {
-            Readable.fromWeb(response.body).pipe(res);
-        } else {
-            res.status(500).send("File is empty.");
-        }
+        // Stream the file directly to the user
+        response.body.pipe(res);
 
-    } catch (error) {
-        console.error(error);
-        res.status(500).send("Error downloading file. The target server may be unreachable.");
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error proxying the download.");
     }
 });
 
+// Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(\`Server running on port \${PORT}\`);
 });
