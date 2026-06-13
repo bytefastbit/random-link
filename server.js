@@ -43,7 +43,8 @@ app.post('/admin/generate', (req, res) => {
     // Store the origin URL linked to this token
     activeLinks.set(token, originUrl);
 
-    const fullUrl = \`\${req.protocol}://\${req.get('host')}/secure/\${token}\`;
+    // FIXED: Removed the invalid backslashes here
+    const fullUrl = `${req.protocol}://${req.get('host')}/secure/${token}`;
 
     res.send(`
         <html>
@@ -109,5 +110,6 @@ app.post('/download/:token', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(\`Server running on port \${PORT}\`);
+    // FIXED: Removed the invalid backslashes here as well
+    console.log(`Server running on port ${PORT}`);
 });
