@@ -1,14 +1,15 @@
 const express = require('express');
-const https = require('https');
-const http = require('http');
+const { Readable } = require('stream'); // Required for modern streaming
 const crypto = require('crypto');
 const app = express();
+
+// 1. Tell Express to trust Render's proxy (Fixes the http vs https issue)
+app.set('trust proxy', 1);
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
 // In-memory database to store our one-time links
-// Note: On free tiers, if the server restarts, these links are lost.
 const activeLinks = new Map();
 
 // YOUR SECRET PASSWORD - Change this before deploying!
@@ -22,7 +23,7 @@ app.get('/admin', (req, res) => {
                 <h2>Generate Secure Download Link</h2>
                 <form method="POST" action="/admin/generate">
                     <input type="password" name="password" placeholder="Admin Password" required /><br><br>
-                    <input type="url" name="originUrl" placeholder="Original Download Link (e.g. upload.ee/..)" style="width: 400px;" required /><br><br>
+                    <input type="url" name="originUrl" placeholder="Original Download Link" style="width: 400px;" required /><br><br>
                     <button type="submit">Generate One-Time Link</button>
                 </form>
             </body>
@@ -37,13 +38,10 @@ app.post('/admin/generate', (req, res) => {
         return res.status(403).send("Unauthorized.");
     }
 
-    // Generate a secure, random string (UUID)
     const token = crypto.randomUUID(); 
-    
-    // Store the origin URL linked to this token
     activeLinks.set(token, originUrl);
 
-    // FIXED: Removed the invalid backslashes here
+    // This will now correctly generate https:// links
     const fullUrl = `${req.protocol}://${req.get('host')}/secure/${token}`;
 
     res.send(`
@@ -65,7 +63,6 @@ app.get('/secure/:token', (req, res) => {
         return res.status(404).send("<h1>Link Expired or Invalid</h1><p>This link has already been used or does not exist.</p>");
     }
 
-    // Serve a page with a download button
     res.send(`
         <html>
             <body style="font-family: Arial; padding: 50px; text-align: center;">
@@ -80,7 +77,7 @@ app.get('/secure/:token', (req, res) => {
 });
 
 // 3. THE PROXY DOWNLOADER: Hides the origin URL
-app.post('/download/:token', (req, res) => {
+app.post('/download/:token', async (req, res) => {
     const token = req.params.token;
 
     if (!activeLinks.has(token)) {
@@ -92,24 +89,47 @@ app.post('/download/:token', (req, res) => {
     // IMPORTANT: Delete the token immediately so it cannot be reused.
     activeLinks.delete(token);
 
-    const client = targetUrl.startsWith('https') ? https : http;
+    try {
+        // Fetch the file while pretending to be a normal Chrome browser
+        const response = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
 
-    // Proxy the request
-    client.get(targetUrl, (proxyRes) => {
-        // Copy headers from the original file host (e.g., file size, content type)
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        if (!response.ok) {
+            return res.status(response.status).send(`Target server rejected the request. Status: ${response.status}`);
+        }
+
+        // Forward necessary headers (file size, type, etc.)
+        const contentType = response.headers.get('content-type');
+        const contentLength = response.headers.get('content-length');
+        const contentDisposition = response.headers.get('content-disposition');
+
+        if (contentType) res.setHeader('Content-Type', contentType);
+        if (contentLength) res.setHeader('Content-Length', contentLength);
         
-        // Pipe the data directly to the user
-        // The user's browser only sees your server, never the targetUrl
-        proxyRes.pipe(res);
-    }).on('error', (err) => {
-        console.error(err);
-        res.status(500).send("Error downloading file.");
-    });
+        // Force the browser to download the file instead of playing it inside the tab
+        if (contentDisposition) {
+            res.setHeader('Content-Disposition', contentDisposition);
+        } else {
+            res.setHeader('Content-Disposition', 'attachment'); 
+        }
+
+        // Pipe the file data directly to the user
+        if (response.body) {
+            Readable.fromWeb(response.body).pipe(res);
+        } else {
+            res.status(500).send("File is empty.");
+        }
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("Error downloading file. The target server may be unreachable.");
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    // FIXED: Removed the invalid backslashes here as well
     console.log(`Server running on port ${PORT}`);
 });
