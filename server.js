@@ -6,7 +6,6 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 
 // Store active links in memory. 
-// Note: On free hosts, this resets if the server goes to sleep.
 const activeLinks = new Map();
 
 // YOUR SECRET PASSWORD - Change this!
@@ -39,9 +38,10 @@ app.post('/admin/generate', (req, res) => {
     // Store the original URL mapped to the random ID
     activeLinks.set(randomId, sourceUrl);
 
-    // Give you the link to share
-    const shareableLink = \`\${req.protocol}://\${req.get('host')}/p/\${randomId}\`;
-    res.send(`Success! Share this link: <br><br><b><a href="\${shareableLink}">\${shareableLink}</a></b><br><br><i>This link will self-destruct after one use.</i>`);
+    // Give you the link to share (FIXED: Escaped characters removed here)
+    const shareableLink = `${req.protocol}://${req.get('host')}/p/${randomId}`;
+    
+    res.send(`Success! Share this link: <br><br><b><a href="${shareableLink}">${shareableLink}</a></b><br><br><i>This link will self-destruct after one use.</i>`);
 });
 
 // ---------------------------------------------------------
@@ -111,7 +111,8 @@ app.post('/download/:id', async (req, res) => {
         // Fetch the file from the original source as a proxy
         const response = await fetch(sourceUrl);
         
-        if (!response.ok) throw new Error(\`Unexpected response \${response.statusText}\`);
+        // FIXED: Escaped characters removed here
+        if (!response.ok) throw new Error(`Unexpected response ${response.statusText}`);
 
         // Forward headers to the client so it triggers a file download
         res.setHeader('Content-Disposition', 'attachment');
@@ -134,5 +135,6 @@ app.post('/download/:id', async (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(\`Server running on port \${PORT}\`);
+    // FIXED: Escaped characters removed here
+    console.log(`Server running on port ${PORT}`);
 });
