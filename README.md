@@ -1,6 +1,7 @@
 # random-link
 
 ![GitHub stars](https://img.shields.io/github/stars/bytefastbit/random-link?style=for-the-badge&logo=github) ![GitHub forks](https://img.shields.io/github/forks/bytefastbit/random-link?style=for-the-badge&logo=github) ![GitHub issues](https://img.shields.io/github/issues/bytefastbit/random-link?style=for-the-badge&logo=github) ![Last commit](https://img.shields.io/github/last-commit/bytefastbit/random-link?style=for-the-badge&logo=github) ![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=white) ![License](https://img.shields.io/badge/license-ISC-green?style=for-the-badge)
+[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/bytefastbit/random-link)
 
 ## 📑 Table of Contents
 
