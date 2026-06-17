@@ -55,7 +55,6 @@ This application requires the following environment variables. You can set them 
 *   `UPSTASH_URL`: The REST API URL for your Upstash Redis database.
 *   `UPSTASH_TOKEN`: The read-write token for your Upstash Redis database.
 *   `ADMIN_PASSWORD`: A secret password of your choice to protect the `/admin` panel.
-*   `PORT`: The port for the server to run on (defaults to `3000`).
 
 **Example:**
 
