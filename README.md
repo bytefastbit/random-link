@@ -6,7 +6,7 @@
 ![Last commit](https://img.shields.io/github/last-commit/bytefastbit/random-link?style=for-the-badge&logo=github)
 ![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=white)
-![License](https://img.shields.io/badge/license-ISC-green?style=for-the-badge)
+![License](https://img.shields.io/badge/license-All%20Rights%20Reserved-red?style=for-the-badge)
 
 A Node.js application that creates secure, single-use download links. It works as a proxy so the original file URL is never exposed to the user, and each link can be used only once.
 
@@ -105,4 +105,8 @@ Health check / keep-alive route for hosting providers that suspend idle services
 
 ## License
 
-ISC
+This repository is source-available, not open source. See [`LICENSE`](./LICENSE) for the full terms.
+
+The code may not be copied, modified, redistributed, or used to create derivative works without prior written permission from the copyright holder.
+
+If permission is granted in writing for any reuse, clear credit to the original author must be preserved.
