@@ -1,46 +1,59 @@
-# Random Link: Secure, Single-Use Download Proxy
+# Random Link
 
-![GitHub stars](https://img.shields.io/github/stars/bytefastbit/random-link?style=for-the-badge&logo=github) ![GitHub forks](https://img.shields.io/github/forks/bytefastbit/random-link?style=for-the-badge&logo=github) ![GitHub issues](https://img.shields.io/github/issues/bytefastbit/random-link?style=for-the-badge&logo=github) ![Last commit](https://img.shields.io/github/last-commit/bytefastbit/random-link?style=for-the-badge&logo=github) ![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white) ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=white) ![License](https://img.shields.io/badge/license-ISC-green?style=for-the-badge)
-[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/bytefastbit/random-link)
+![GitHub stars](https://img.shields.io/github/stars/bytefastbit/random-link?style=for-the-badge&logo=github)
+![GitHub forks](https://img.shields.io/github/forks/bytefastbit/random-link?style=for-the-badge&logo=github)
+![GitHub issues](https://img.shields.io/github/issues/bytefastbit/random-link?style=for-the-badge&logo=github)
+![Last commit](https://img.shields.io/github/last-commit/bytefastbit/random-link?style=for-the-badge&logo=github)
+![Express.js](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=white)
+![License](https://img.shields.io/badge/license-ISC-green?style=for-the-badge)
 
-This is a Node.js application that generates secure, single-use, "burn-after-reading" download links. It acts as a proxy to hide the original source of a file and ensures that a generated link can only be used once for a download.
+A Node.js application that creates secure, single-use download links. It works as a proxy so the original file URL is never exposed to the user, and each link can be used only once.
 
-## Features
+## What it does
 
-*   **Password-Protected Admin Panel**: Generate new links from a secure `/admin` route.
-*   **One-Time Use Links**: Each link self-destructs from the database immediately upon use.
-*   **Download Proxy**: The original file's URL is never exposed to the end-user. The server streams the file to the user.
-*   **URL Obfuscation**: The download page URL is continuously scrambled by client-side JavaScript to deter casual inspection and copying.
-*   **Persistent Storage**: Uses [Upstash](https://upstash.com/) Redis for fast and persistent link storage until the first use.
+- Password-protected admin panel for creating links
+- Single-use download links that self-destruct after the first download
+- Proxy download flow so the source URL stays hidden
+- URL scrambling on the download page to discourage casual inspection
+- Redis-backed storage using Upstash until the link is used
 
-## How It Works
+## How it works
 
-1.  **Generation**: The administrator navigates to `/admin`, enters a password and the original file URL.
-2.  **Storage**: The application generates a unique random ID and stores the `ID -> Original URL` mapping in an Upstash Redis database.
-3.  **Sharing**: A shareable link in the format `https://your-domain.com/p/:id` is provided to the administrator.
-4.  **Access**: A user clicks the shareable link and is presented with a simple download page. The URL in the browser's address bar is actively scrambled.
-5.  **Download & Burn**: The user clicks "Start Secure Download". The server:
-    *   Looks up the original URL from the database using the unique ID.
-    *   **Immediately deletes the record** from the database to prevent reuse.
-    *   Fetches the file from the original source and streams it directly to the user.
-6.  **Expiration**: Any future attempt to access the same link will result in a "404 Not Found" error, as the record no longer exists.
+1. Open `/admin` and enter the admin password plus the original file URL.
+2. The server generates a random ID and stores the `ID -> source URL` mapping in Upstash Redis.
+3. A shareable link is returned in the form `/p/:id`.
+4. When the link is opened, the user sees a simple download page.
+5. Clicking **Start Secure Download** sends the request to `/download/:id`.
+6. The server looks up the original URL, deletes the record immediately, and streams the file back to the user.
+7. Any later attempt to use the same link returns a 404.
 
-## Tech Stack
+## Keep-alive setup
 
-*   **Backend**: Node.js, Express.js
-*   **Database**: Upstash (Redis)
-*   **Dependencies**: `node-fetch`
+This deployment uses a keep-alive ping to prevent the Render service from idling out.
 
-## Setup and Usage
+- Keep-alive URL: `https://random-link.onrender.com/ping`
+- Ping schedule: every 10 minutes
+- Suggested scheduler: `https://console.cron-job.org/`
 
-### 1. Prerequisites
+The `/ping` route returns a simple `200` response so external schedulers can keep the app awake.
 
-*   Node.js and npm installed.
-*   An [Upstash](https://upstash.com/) account for the Redis database.
+## Tech stack
 
-### 2. Installation
+- Node.js
+- Express
+- Upstash Redis
+- `node-fetch`
 
-Clone the repository and install the dependencies.
+## Setup
+
+### Prerequisites
+
+- Node.js and npm
+- An Upstash Redis database
+- An admin password for `/admin`
+
+### Install
 
 ```bash
 git clone https://github.com/bytefastbit/random-link.git
@@ -48,52 +61,48 @@ cd random-link
 npm install
 ```
 
-### 3. Configuration
+### Environment variables
 
-This application requires the following environment variables. You can set them directly in your shell or use a `.env` file with a library like `dotenv`.
-
-*   `UPSTASH_URL`: The REST API URL for your Upstash Redis database.
-*   `UPSTASH_TOKEN`: The read-write token for your Upstash Redis database.
-*   `ADMIN_PASSWORD`: A secret password of your choice to protect the `/admin` panel.
-
-**Example:**
+Set these in your environment or a `.env` file:
 
 ```bash
-# Set these in your deployment environment (e.g., Render, Heroku)
 UPSTASH_URL="https://your-region-your-db.upstash.io"
-UPSTASH_TOKEN="YourUpstashReadWriteToken"
-ADMIN_PASSWORD="a-very-secret-password"
+UPSTASH_TOKEN="your-upstash-token"
+ADMIN_PASSWORD="your-secret-password"
 PORT=3000
 ```
 
-### 4. Running the Server
-
-Start the application with the following command:
+### Run locally
 
 ```bash
 node server.js
 ```
 
-The server will be running on `http://localhost:3000` (or your configured port).
+Open `http://localhost:3000` in your browser.
 
-## API Endpoints
+## API endpoints
 
-*   `GET /admin`
-    *   Displays the HTML form for generating a new secure link.
+### `GET /admin`
+Shows the admin form used to create a secure link.
 
-*   `POST /admin/generate`
-    *   Accepts a password and `sourceUrl` from the form.
-    *   Validates the password, generates a unique ID, and stores the link in the database.
-    *   Returns the new shareable link.
+### `POST /admin/generate`
+Validates the admin password, stores the original source URL, and returns a shareable link.
 
-*   `GET /p/:id`
-    *   The public-facing download page for a given link ID.
-    *   Presents a "Start Secure Download" button.
+### `GET /p/:id`
+Public download page for a secure link.
 
-*   `POST /download/:id`
-    *   The endpoint triggered by the download button.
-    *   Retrieves the original URL from the database, then immediately deletes the record.
-    *   Proxies and streams the file from the original source to the user.
+### `POST /download/:id`
+Fetches the original file, deletes the stored link, and streams the file to the user.
 
-*   `GET /ping`
-    *   A simple keep-alive route that returns a `200` status, useful for hosting platforms that put idle services to sleep.
+### `GET /ping`
+Health check / keep-alive route for hosting providers that suspend idle services.
+
+## Notes
+
+- The original file URL is never shown to the end user.
+- The link can only be used once.
+- The stored mapping is removed before the file is streamed, so the same link cannot be reused.
+
+## License
+
+ISC
